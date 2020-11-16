@@ -118,7 +118,7 @@ namespace AzureDevOpsAPI.WorkItemAndTracking
                 {
                     if (workItemType.ToLower() == "epic" || workItemType.ToLower() == "feature")
                     {
-                        fetchedWIs.Value = fetchedWIs.Value.OrderBy(x => x.Id).ToArray();
+                        //fetchedWIs.Value = fetchedWIs.Value.OrderBy(x => x.Id).ToArray();
                     }
                     foreach (ImportWorkItemModel.Value newWI in fetchedWIs.Value)
                     {
@@ -209,6 +209,9 @@ namespace AzureDevOpsAPI.WorkItemAndTracking
                                 dicWIFields.Add("/fields/System.AssignedTo", assignToUser);
                             }
                             string areaPath = newWI.Fields.SystemAreaPath ?? projectName;
+                            string[] areaPathSlpit = areaPath.Split('/');
+                            areaPathSlpit[0] = projectName;
+                            areaPath = string.Join("//", areaPathSlpit);
                             dicWIFields.Add("/fields/System.AreaPath", areaPath);
                             dicWIFields.Add("/fields/System.Description", newWI.Fields.SystemDescription);
                             dicWIFields.Add("/fields/System.State", newWI.Fields.SystemState);
@@ -279,9 +282,7 @@ namespace AzureDevOpsAPI.WorkItemAndTracking
                 using (var client = GetHttpClient())
                 {
                     var postValue = new StringContent(JsonConvert.SerializeObject(fields), Encoding.UTF8, "application/json-patch+json"); // mediaType needs to be application/json-patch+json for a patch call
-                                                                                                                                          // set the httpmethod to Patch
                     var method = new HttpMethod("PATCH");
-
                     // send the request               
                     var request = new HttpRequestMessage(method, projectName + "/_apis/wit/workitems/$" + workItemType + "?bypassRules=true&api-version=" + Configuration.VersionNumber) { Content = postValue };
                     var response = client.SendAsync(request).Result;
@@ -295,6 +296,7 @@ namespace AzureDevOpsAPI.WorkItemAndTracking
                         var errorMessage = response.Content.ReadAsStringAsync();
                         string error = Utility.GeterroMessage(errorMessage.Result.ToString());
                         this.LastFailureMessage = error;
+                        logger.Info(error);
                     }
 
                     return response.IsSuccessStatusCode;
@@ -324,7 +326,6 @@ namespace AzureDevOpsAPI.WorkItemAndTracking
                 WiMapData findIDforUpdate;
                 if (fetchedPBIs.Count > 0)
                 {
-
                     foreach (ImportWorkItemModel.Value newWI in fetchedPBIs.Value)
                     {
                         //continue next iteration if there is no relation

@@ -140,10 +140,7 @@ namespace AzureDevOpsDemoBuilder.Controllers
                     _templates.Groups = new List<string>();
                     foreach (var group in templates.Groups)
                     {
-                        if (group.ToLower() != "private")
-                        {
-                            _templates.Groups.Add(group);
-                        }
+                        _templates.Groups.Add(group);
                     }
                     templates.Groups = _templates.Groups;
                 }
@@ -166,7 +163,7 @@ namespace AzureDevOpsDemoBuilder.Controllers
                 string TemplateSelected = string.Empty;
                 if (HttpContext.Session.GetString("visited") != null)
                 {
-                    logger.LogInformation("visited");
+                    //logger.LogInformation("visited");
                     Project model = new Project();
                     if (HttpContext.Session.GetString("EnableExtractor") != null)
                     {
@@ -185,7 +182,7 @@ namespace AzureDevOpsDemoBuilder.Controllers
 
                     if (HttpContext.Session.GetString("PAT") != null)
                     {
-                        logger.LogInformation("PAT is not null");
+                        //logger.LogInformation("PAT is not null");
                         _accessDetails.access_token = HttpContext.Session.GetString("PAT");
                         ProfileDetails profile = accountService.GetProfile(_accessDetails);
                         if (profile.displayName != null || profile.emailAddress != null)
@@ -428,6 +425,10 @@ namespace AzureDevOpsDemoBuilder.Controllers
                 }
                 //Deleting uploaded zip files present from last one hour
                 string extractedZipFile = HostingEnvironment.ContentRootPath + "/ExtractedZipFile/";
+                if (!Directory.Exists(extractedZipFile))
+                {
+                    Directory.CreateDirectory(extractedZipFile);
+                }
                 if (Directory.Exists(extractedZipFile))
                 {
                     string[] subdirs = Directory.GetFiles(extractedZipFile)
@@ -441,7 +442,7 @@ namespace AzureDevOpsDemoBuilder.Controllers
                     }
                 }
 
-                string zipPath = HostingEnvironment.ContentRootPath + "/ExtractedZipFile" + fineName;
+                string zipPath = HostingEnvironment.ContentRootPath + "/ExtractedZipFile/" + fineName;
                 string folder = fineName.Replace(".zip", "");
                 privateTemplate.PrivateTemplateName = folder;
 
@@ -808,7 +809,7 @@ namespace AzureDevOpsDemoBuilder.Controllers
 
                     if (privateTemplate.PrivateTemplatePath != "")
                     {
-                        privateTemplate.ResponseMessage  = templateService.checkSelectedTemplateIsPrivate(privateTemplate.PrivateTemplatePath);
+                        privateTemplate.ResponseMessage = templateService.checkSelectedTemplateIsPrivate(privateTemplate.PrivateTemplatePath);
                         if (privateTemplate.ResponseMessage != "SUCCESS")
                         {
                             var templatepath = HostingEnvironment.ContentRootPath + "/PrivateTemplates/" + templateName.ToLower().Replace(".zip", "").Trim();

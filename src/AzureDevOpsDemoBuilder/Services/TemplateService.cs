@@ -1,18 +1,16 @@
-﻿using Newtonsoft.Json;
+﻿using AzureDevOpsAPI.Viewmodel.Extractor;
+using AzureDevOpsDemoBuilder.Extensions;
+using AzureDevOpsDemoBuilder.Models;
+using AzureDevOpsDemoBuilder.ServiceInterfaces;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
-using AzureDevOpsDemoBuilder.Extensions;
-using AzureDevOpsDemoBuilder.Models;
-using AzureDevOpsDemoBuilder.ServiceInterfaces;
-using AzureDevOpsAPI.Viewmodel.Extractor;
 using static AzureDevOpsDemoBuilder.Models.TemplateSelection;
-using Microsoft.VisualStudio.Services.Gallery.WebApi;
-using Microsoft.AspNetCore.Hosting;
-using AzureDevOpsDemoBuilder.Services;
-using Microsoft.Extensions.Logging;
 
 namespace AzureDevOpsDemoBuilder.Services
 {
@@ -174,7 +172,12 @@ namespace AzureDevOpsDemoBuilder.Services
                     Directory.CreateDirectory(HostingEnvironment.ContentRootPath + "/ExtractedZipFile");
                 }
                 var path = HostingEnvironment.ContentRootPath + "/ExtractedZipFile/" + ExtractedTemplate;
-
+                if (uri.Host == "github.com")
+                {
+                    string gUri = uri.ToString();
+                    gUri = gUri.Replace("github.com", "raw.githubusercontent.com").Replace("/blob/", "/");
+                    TemplateUrl = gUri.ToString();
+                }
                 //Downloading template from source of type github
                 if (uri.Host == "raw.githubusercontent.com")
                 {
@@ -254,20 +257,22 @@ namespace AzureDevOpsDemoBuilder.Services
         {
             try
             {
-                string[] filepaths = Directory.GetFiles(dir);
-                foreach (var file in filepaths)
+                if (Directory.Exists(dir))
                 {
-                    if (Path.GetExtension(Path.GetFileName(file)) != ".json")
+                    string[] filepaths = Directory.GetFiles(dir);
+                    foreach (var file in filepaths)
                     {
-                        return false;
+                        if (Path.GetExtension(Path.GetFileName(file)) != ".json")
+                        {
+                            return false;
+                        }
+                    }
+                    string[] subdirectoryEntries = Directory.GetDirectories(dir);
+                    foreach (string subdirectory in subdirectoryEntries)
+                    {
+                        checkTemplateDirectory(subdirectory);
                     }
                 }
-                string[] subdirectoryEntries = Directory.GetDirectories(dir);
-                foreach (string subdirectory in subdirectoryEntries)
-                {
-                    checkTemplateDirectory(subdirectory);
-                }
-
             }
             catch (Exception ex)
             {
@@ -317,12 +322,12 @@ namespace AzureDevOpsDemoBuilder.Services
                 }
                 else
                 {
-                    bool settingFile = (System.IO.File.Exists(extractPath + "\\ProjectSettings.json") ? true : false);
-                    bool projectFile = (System.IO.File.Exists(extractPath + "\\ProjectTemplate.json") ? true : false);
+                    bool settingFile = (System.IO.File.Exists(extractPath + "//ProjectSettings.json") ? true : false);
+                    bool projectFile = (System.IO.File.Exists(extractPath + "//ProjectTemplate.json") ? true : false);
 
                     if (settingFile && projectFile)
                     {
-                        string projectFileData = System.IO.File.ReadAllText(extractPath + "\\ProjectTemplate.json");
+                        string projectFileData = System.IO.File.ReadAllText(extractPath + "//ProjectTemplate.json");
                         ProjectSetting settings = JsonConvert.DeserializeObject<ProjectSetting>(projectFileData);
                         response = "SUCCESS";
                     }
@@ -345,7 +350,7 @@ namespace AzureDevOpsDemoBuilder.Services
                         if (response != "SUCCESS")
                         {
                             Directory.Delete(extractPath, true);
-                            response = "Project setting and project template files not found! plase include the files in zip and try again";
+                            response = "Project setting and project template files not found!. Include the files in zip and try again";
                         }
                     }
                     else

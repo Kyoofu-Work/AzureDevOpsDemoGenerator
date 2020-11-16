@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using Newtonsoft.Json;
+using System.Collections.Generic;
 
 namespace AzureDevOpsAPI.Viewmodel.Extractor
 {
@@ -6,7 +7,8 @@ namespace AzureDevOpsAPI.Viewmodel.Extractor
     {
         public class Keys
         {
-            public IList<string> KeysValue { get; set; }
+            [JsonProperty(PropertyName = "keys")]
+            public List<string> KeysValue { get; set; }
         }
     }
 }

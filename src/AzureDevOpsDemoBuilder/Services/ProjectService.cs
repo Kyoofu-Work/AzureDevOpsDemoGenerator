@@ -1,17 +1,4 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using AzureDevOpsDemoBuilder.Extensions;
-using AzureDevOpsDemoBuilder.Models;
-using AzureDevOpsDemoBuilder.ServiceInterfaces;
-using AzureDevOpsAPI;
+﻿using AzureDevOpsAPI;
 using AzureDevOpsAPI.Build;
 using AzureDevOpsAPI.DeploymentGRoup;
 using AzureDevOpsAPI.Extractor;
@@ -34,19 +21,34 @@ using AzureDevOpsAPI.Viewmodel.Wiki;
 using AzureDevOpsAPI.Viewmodel.WorkItem;
 using AzureDevOpsAPI.Wiki;
 using AzureDevOpsAPI.WorkItemAndTracking;
-using ClassificationNodes = AzureDevOpsAPI.WorkItemAndTracking.ClassificationNodes;
+using AzureDevOpsDemoBuilder.Extensions;
+using AzureDevOpsDemoBuilder.Models;
+using AzureDevOpsDemoBuilder.ServiceInterfaces;
+using AzureDevOpsRestApi.Git;
+using AzureDevOpsRestApi.Viewmodel.ProjectAndTeams;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.VisualStudio.Services.WebApi;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.VisualStudio.Services.Common;
-using Microsoft.VisualStudio.Services.ExtensionManagement.WebApi;
 //using GoogleAnalyticsTracker.Simple;
 //using GoogleAnalyticsTracker.WebApi;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using AzureDevOpsRestApi.Viewmodel.ProjectAndTeams;
+using Microsoft.VisualStudio.Services.Common;
+using Microsoft.VisualStudio.Services.ExtensionManagement.WebApi;
+using Microsoft.VisualStudio.Services.WebApi;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+using static VstsDemoBuilder.Controllers.Apis.ProjectController;
+using ClassificationNodes = AzureDevOpsAPI.WorkItemAndTracking.ClassificationNodes;
 
 namespace AzureDevOpsDemoBuilder.Services
 {
@@ -57,7 +59,6 @@ namespace AzureDevOpsDemoBuilder.Services
 
         public bool isDefaultRepoTodetele = true;
         public string websiteUrl = string.Empty;
-        public string templateUsed = string.Empty;
         public static string projectName = string.Empty;
         public static AccessDetails AccessDetails = new AccessDetails();
 
@@ -157,8 +158,9 @@ namespace AzureDevOpsDemoBuilder.Services
                 StatusMessages.Remove(id);
             }
         }
-        public JObject GetStatusMessage(string id)
+        public string GetStatusMessage(string id)
         {
+            string status = string.Empty;
             lock (ProjectService.objLock)
             {
                 string message = string.Empty;
@@ -166,18 +168,18 @@ namespace AzureDevOpsDemoBuilder.Services
                 if (id.EndsWith("_Errors"))
                 {
                     //RemoveKey(id);
-                    obj["status"] = "Error: \t" + ProjectService.StatusMessages[id];
+                    status = "Error: \t" + ProjectService.StatusMessages[id];
                 }
                 if (ProjectService.StatusMessages.Keys.Count(x => x == id) == 1)
                 {
-                    obj["status"] = ProjectService.StatusMessages[id];
+                    status = ProjectService.StatusMessages[id];
                 }
                 else
                 {
-                    obj["status"] = "Successfully Created";
+                    status = "Successfully Created";
 
                 }
-                return obj;
+                return status;
             }
         }
 
@@ -230,7 +232,7 @@ namespace AzureDevOpsDemoBuilder.Services
             //}
             //else
             //{
-            templateUsed = model.SelectedTemplate;
+            string templateUsed = model.SelectedTemplate;
             //}
             logger.LogDebug(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + "\t" + "Project Name: " + model.ProjectName + "\t Template Selected: " + templateUsed + "\t Organization Selected: " + accountName);
             string pat = model.AccessToken;
@@ -448,7 +450,8 @@ namespace AzureDevOpsDemoBuilder.Services
             // Fork Repo
             if (model.GitHubFork && model.GitHubToken != null)
             {
-                ForkGitHubRepository(model, _gitHubConfig);
+                ImportGitRepository(model, _gitHubConfig);
+                //ForkGitHubRepository(model, _gitHubConfig);
             }
 
             //Add user as project admin
@@ -492,6 +495,7 @@ namespace AzureDevOpsDemoBuilder.Services
             }
             if (templateVersion != "2.0")
             {
+                AddMessage(model.Id, "Updated Iteration Dates");
                 UpdateIterations(model, _boardVersion, "Iterations.json");
                 //create teams
                 CreateTeams(model, template.Teams, _projectCreationVersion, model.Id, template.TeamArea);
@@ -581,6 +585,7 @@ namespace AzureDevOpsDemoBuilder.Services
             }
             else
             {
+                AddMessage(model.Id, "Updated Iteration Dates");
                 UpdateIterations(model, _boardVersion, "Iterations.json");
                 // for newer version of templates
                 string teamsJsonPath = GetJsonFilePath(model.IsPrivatePath, model.PrivateTemplatePath, templateUsed, "Teams\\Teams.json");
@@ -746,8 +751,8 @@ namespace AzureDevOpsDemoBuilder.Services
             Thread.Sleep(10000); //Adding delay to wait for the repository to create and import from the source
 
             //Create WIKI
-            CreateProjetWiki(HostingEnvironment.WebRootPath + "/Templates/", model, _wikiVersion);
-            CreateCodeWiki(model, _wikiVersion);
+            //CreateProjetWiki(HostingEnvironment.WebRootPath + "/Templates/", model, _wikiVersion);
+            //CreateCodeWiki(model, _wikiVersion);
 
             List<string> listPullRequestJsonPaths = new List<string>();
             string pullRequestFolder = GetJsonFilePath(model.IsPrivatePath, model.PrivateTemplatePath, templateUsed, "/PullRequests");
@@ -871,19 +876,12 @@ namespace AzureDevOpsDemoBuilder.Services
                     {
                         foreach (var workItem in workItemFilePaths)
                         {
-                            string[] workItemPatSplit = workItem.Split('\\');
-                            if (workItemPatSplit.Length > 0)
+                            string workItemName = Path.GetFileName(workItem);
+                            string[] nameExtension = workItemName.Split('.');
+                            string name = nameExtension[0];
+                            if (!workItems.ContainsKey(name))
                             {
-                                string workItemName = workItemPatSplit[workItemPatSplit.Length - 1];
-                                if (!string.IsNullOrEmpty(workItemName))
-                                {
-                                    string[] nameExtension = workItemName.Split('.');
-                                    string name = nameExtension[0];
-                                    if (!workItems.ContainsKey(name))
-                                    {
-                                        workItems.Add(name, model.ReadJsonFile(workItem));
-                                    }
-                                }
+                                workItems.Add(name, model.ReadJsonFile(workItem));
                             }
                         }
                     }
@@ -893,6 +891,7 @@ namespace AzureDevOpsDemoBuilder.Services
             ImportWorkItems import = new ImportWorkItems(_workItemsVersion, model.Environment.BoardRowFieldName);
             if (File.Exists(projectSettingsFile))
             {
+                AddMessage(model.Id, "Validating work item(s) definitions");
                 string attchmentFilesFolder = GetJsonFilePath(model.IsPrivatePath, model.PrivateTemplatePath, templateUsed, "/WorkItemAttachments");
                 if (listPullRequestJsonPaths.Count > 0)
                 {
@@ -961,7 +960,7 @@ namespace AzureDevOpsDemoBuilder.Services
                 }
             }
             // if the template is not private && agreed to GitHubFork && GitHub Token is not null
-            else if (string.IsNullOrEmpty(setting.IsPrivate) && model.GitHubFork && !string.IsNullOrEmpty(model.GitHubToken))
+            else if (setting.IsPrivate == "false" && model.GitHubFork && !string.IsNullOrEmpty(model.GitHubToken))
             {
                 buildDefinitionsPath = GetJsonFilePath(model.IsPrivatePath, model.PrivateTemplatePath, templateUsed, "/BuildDefinitionGitHub");
                 if (Directory.Exists(buildDefinitionsPath))
@@ -970,7 +969,7 @@ namespace AzureDevOpsDemoBuilder.Services
                 }
             }
             // if the template is not private && not agreed to GitHubFork && GitHub Token is null
-            else if (string.IsNullOrEmpty(setting.IsPrivate) && !model.GitHubFork && string.IsNullOrEmpty(model.GitHubToken))
+            else if (setting.IsPrivate == "false" && !model.GitHubFork && string.IsNullOrEmpty(model.GitHubToken))
             {
                 buildDefinitionsPath = GetJsonFilePath(model.IsPrivatePath, model.PrivateTemplatePath, templateUsed, "/BuildDefinitions");
                 if (Directory.Exists(buildDefinitionsPath))
@@ -978,11 +977,15 @@ namespace AzureDevOpsDemoBuilder.Services
                     Directory.GetFiles(buildDefinitionsPath, "*.json", SearchOption.AllDirectories).ToList().ForEach(i => model.BuildDefinitions.Add(new BuildDef() { FilePath = i }));
                 }
             }
-            bool isBuild = CreateBuildDefinition(model, _buildVersion, model.Id);
-            if (isBuild)
+            if (model.BuildDefinitions.Count > 0)
             {
-                AddMessage(model.Id, "Build definition created");
+                bool isBuild = CreateBuildDefinition(model, _buildVersion, model.Id);
+                if (isBuild)
+                {
+                    AddMessage(model.Id, "Build definition created");
+                }
             }
+
 
             //Queue a Build
             string buildJson = GetJsonFilePath(model.IsPrivatePath, model.PrivateTemplatePath, templateUsed, "QueueBuild.json");
@@ -1022,6 +1025,73 @@ namespace AzureDevOpsDemoBuilder.Services
             StatusMessages[model.Id] = "100";
             return new string[] { model.Id, accountName, templateUsed };
         }
+        private void ImportGitRepository(Project model, AppConfiguration _gitHubConfig)
+        {
+            List<string> listRepoFiles = new List<string>();
+            string repoFilePath = GetJsonFilePath(model.IsPrivatePath, model.PrivateTemplatePath, model.SelectedTemplate, "/ImportSourceCode/GitRepository.json");
+            string createRepo = string.Format("{0}/{1}/{2}", HostingEnvironment.WebRootPath, "Templates", "CreateGitHubRepo.json");
+            string readRepoFile = model.ReadJsonFile(repoFilePath);
+
+            if (!string.IsNullOrEmpty(readRepoFile))
+            {
+                GitHubRepos.Fork forkRepos = new GitHubRepos.Fork();
+                forkRepos = JsonConvert.DeserializeObject<GitHubRepos.Fork>(readRepoFile);
+                if (forkRepos.Repositories != null && forkRepos.Repositories.Count > 0)
+                {
+                    foreach (var repo in forkRepos.Repositories)
+                    {
+                        string repoName = Path.GetFileName(repo.vcs_url);
+                        string readCreateRepoFile = model.ReadJsonFile(createRepo).Replace("$NAME$", repoName);
+                        GitHubImportRepo importRepo = new GitHubImportRepo(_gitHubConfig);
+                        GitHubUserDetail userDetail = new GitHubUserDetail();
+                        GitHubRepoResponse.RepoCreated GitHubRepo = new GitHubRepoResponse.RepoCreated();
+                        var createRepoRes = importRepo.CreateRepo(readCreateRepoFile);
+                        if (createRepoRes.IsSuccessStatusCode)
+                        {
+                            var importRepoRes = importRepo.ImportRepo(repoName, repo);
+                            bool flag = false;
+                            if (importRepoRes.IsSuccessStatusCode)
+                            {
+                                importStat:
+                                var importStatusRes = importRepo.GetImportStatus(repoName);
+                                var res = importStatusRes.Content.ReadAsStringAsync().Result;
+                                ImportRepoResponse.Import importStatus = JsonConvert.DeserializeObject<ImportRepoResponse.Import>(res);
+                                if (!flag)
+                                {
+                                    AddMessage(model.Id, "Importing repository, this may take some time. View status <a href='" + importStatus.html_url + "' target='_blank'>here</a>"); flag = true;
+                                }
+                                while (importStatus.status != "complete")
+                                {
+                                    goto importStat;
+                                }
+                                model.GitRepoURL = importStatus.repository_url;
+                                model.GitRepoURL = model.GitRepoURL.Replace("api.", "").Replace("/repos", "/");
+
+                                model.GitRepoName = repoName;
+                                if (!model.Environment.GitHubRepos.ContainsKey(model.GitRepoName))
+                                {
+                                    model.Environment.GitHubRepos.Add(model.GitRepoName, model.GitRepoURL);
+                                }
+                                AddMessage(model.Id, string.Format("Imported GitHub repository", model.GitRepoName, _gitHubConfig.UserName));
+                            }
+                            else if (importRepoRes.StatusCode == System.Net.HttpStatusCode.Conflict)
+                            {
+                                AddMessage(model.Id, string.Format("Imported GitHub repository", model.GitRepoName = repoName, _gitHubConfig.UserName));
+                                if (!model.Environment.GitHubRepos.ContainsKey(model.GitRepoName))
+                                {
+                                    model.Environment.GitHubRepos.Add(model.GitRepoName, model.GitRepoURL = string.Format("https://github.com/{0}/{1}", _gitHubConfig.UserName, model.GitRepoName));
+                                }
+                            }
+                            else
+                            {
+                                var res = importRepoRes.Content.ReadAsStringAsync().Result;
+                                AddMessage(model.Id.ErrorId(), res.ToString());
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         private void ForkGitHubRepository(Project model, AppConfiguration _gitHubConfig)
         {
@@ -1034,8 +1104,8 @@ namespace AzureDevOpsDemoBuilder.Services
                     string readRepoFile = model.ReadJsonFile(repoFilePath);
                     if (!string.IsNullOrEmpty(readRepoFile))
                     {
-                        ForkRepos.Fork forkRepos = new ForkRepos.Fork();
-                        forkRepos = JsonConvert.DeserializeObject<ForkRepos.Fork>(readRepoFile);
+                        GitHubRepos.Fork forkRepos = new GitHubRepos.Fork();
+                        forkRepos = JsonConvert.DeserializeObject<GitHubRepos.Fork>(readRepoFile);
                         if (forkRepos.Repositories != null && forkRepos.Repositories.Count > 0)
                         {
                             foreach (var repo in forkRepos.Repositories)
@@ -1685,39 +1755,35 @@ namespace AzureDevOpsDemoBuilder.Services
                 {
                     string commentFile = Path.GetFileName(pullRequestJsonPath);
                     string repositoryId = string.Empty;
-                    if (model.SelectedTemplate == "MyHealthClinic") { repositoryId = model.Environment.RepositoryIdList["MyHealthClinic"]; }
-                    if (model.SelectedTemplate == "SmartHotel360") { repositoryId = model.Environment.RepositoryIdList["PublicWeb"]; }
+                    if (model.SelectedTemplate == "MyHealthClinic") { repositoryId = model.Environment.RepositoryIdList.ContainsKey("MyHealthClinic") ? model.Environment.RepositoryIdList["MyHealthClinic"] : string.Empty; }
+                    if (model.SelectedTemplate == "SmartHotel360") { repositoryId = model.Environment.RepositoryIdList.ContainsKey("PublicWeb") ? model.Environment.RepositoryIdList["PublicWeb"] : string.Empty; }
                     else { repositoryId = model.Environment.RepositoryIdList[model.SelectedTemplate]; }
 
                     pullRequestJsonPath = model.ReadJsonFile(pullRequestJsonPath);
                     pullRequestJsonPath = pullRequestJsonPath.Replace("$reviewer$", model.Environment.UserUniqueId);
                     Repository objRepository = new Repository(_workItemConfig);
-                    string[] pullReqResponse = new string[2];
 
-                    pullReqResponse = objRepository.CreatePullRequest(pullRequestJsonPath, repositoryId);
-                    if (pullReqResponse.Length > 0)
+                    (string pullRequestId, string title) = objRepository.CreatePullRequest(pullRequestJsonPath, repositoryId);
+                    if (!string.IsNullOrEmpty(pullRequestId) && !string.IsNullOrEmpty(title))
                     {
-                        if (!string.IsNullOrEmpty(pullReqResponse[0]) && !string.IsNullOrEmpty(pullReqResponse[1]))
+                        model.Environment.PullRequests.Add(pullRequestId, title);
+                        commentFile = GetJsonFilePath(model.IsPrivatePath, model.PrivateTemplatePath, model.SelectedTemplate, "/PullRequests/Comments/" + commentFile);
+                        if (File.Exists(commentFile))
                         {
-                            model.Environment.PullRequests.Add(pullReqResponse[1], pullReqResponse[0]);
-                            commentFile = GetJsonFilePath(model.IsPrivatePath, model.PrivateTemplatePath, model.SelectedTemplate, "/PullRequests/Comments/" + commentFile);
-                            if (File.Exists(commentFile))
+                            commentFile = model.ReadJsonFile(commentFile);
+                            PullRequestComments.Comments commentsList = JsonConvert.DeserializeObject<PullRequestComments.Comments>(commentFile);
+                            if (commentsList.Count > 0)
                             {
-                                commentFile = model.ReadJsonFile(commentFile);
-                                PullRequestComments.Comments commentsList = JsonConvert.DeserializeObject<PullRequestComments.Comments>(commentFile);
-                                if (commentsList.Count > 0)
+                                foreach (PullRequestComments.Value thread in commentsList.Value)
                                 {
-                                    foreach (PullRequestComments.Value thread in commentsList.Value)
+                                    string threadID = objRepository.CreateCommentThread(repositoryId, title, JsonConvert.SerializeObject(thread));
+                                    if (!string.IsNullOrEmpty(threadID))
                                     {
-                                        string threadID = objRepository.CreateCommentThread(repositoryId, pullReqResponse[0], JsonConvert.SerializeObject(thread));
-                                        if (!string.IsNullOrEmpty(threadID))
+                                        if (thread.Replies != null && thread.Replies.Count > 0)
                                         {
-                                            if (thread.Replies != null && thread.Replies.Count > 0)
+                                            foreach (var reply in thread.Replies)
                                             {
-                                                foreach (var reply in thread.Replies)
-                                                {
-                                                    objRepository.AddCommentToThread(repositoryId, pullReqResponse[0], threadID, JsonConvert.SerializeObject(reply));
-                                                }
+                                                objRepository.AddCommentToThread(repositoryId, title, threadID, JsonConvert.SerializeObject(reply));
                                             }
                                         }
                                     }
@@ -1948,7 +2014,7 @@ namespace AzureDevOpsDemoBuilder.Services
                         string jsonBuildDefinition = model.ReadJsonFile(buildDef.FilePath);
                         jsonBuildDefinition = jsonBuildDefinition.Replace("$ProjectName$", model.Environment.ProjectName)
                                              .Replace("$ProjectId$", model.Environment.ProjectId)
-                                             .Replace("$username$", model.GitHubUserName);
+                                             .Replace("$username$", model.GitHubUserName).Replace("$reponame$", model.GitRepoName);
 
                         if (model.Environment.VariableGroups.Count > 0)
                         {
@@ -2868,6 +2934,69 @@ namespace AzureDevOpsDemoBuilder.Services
                         }
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// End the process
+        /// </summary>
+        /// <param name="result"></param>
+        public void EndEnvironmentSetupProcess(IAsyncResult result, Project model, int usercount)
+        {
+            string ID = string.Empty;
+            string accName = string.Empty;
+            try
+            {
+                ProcessEnvironment processTask = (ProcessEnvironment)result.AsyncState;
+                //string[] strResult = processTask.EndInvoke(result);
+                RemoveKey(model.Id);
+                if (ProjectService.StatusMessages.Keys.Count(x => x == model.Id + "_Errors") == 1)
+                {
+                    string errorMessages = ProjectService.StatusMessages[model.Id + "_Errors"];
+                    if (errorMessages != "")
+                    {
+                        //also, log message to file system
+                        string logPath = HostingEnvironment.WebRootPath + "/log";
+                        string fileName = string.Format("{0}_{1}.txt", model.SelectedTemplate, DateTime.Now.ToString("ddMMMyyyy_HHmmss"));
+
+                        if (!Directory.Exists(logPath))
+                        {
+                            Directory.CreateDirectory(logPath);
+                        }
+
+                        System.IO.File.AppendAllText(Path.Combine(logPath, fileName), errorMessages);
+
+                        //Create ISSUE work item with error details in VSTSProjectgenarator account
+                        string patBase64 = AppKeyConfiguration["PATBase64"];
+                        string url = AppKeyConfiguration["URL"];
+                        string projectId = AppKeyConfiguration["PROJECTID"];
+                        string issueName = string.Format("{0}_{1}", model.SelectedTemplate, DateTime.Now.ToString("ddMMMyyyy_HHmmss"));
+                        IssueWi objIssue = new IssueWi();
+
+                        errorMessages = errorMessages + "\t" + "TemplateUsed: " + model.SelectedTemplate;
+                        errorMessages = errorMessages + "\t" + "ProjectCreated : " + ProjectService.projectName;
+
+                        logger.LogDebug(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + "\t  Error: " + errorMessages);
+
+                        string logWIT = AppKeyConfiguration["LogWIT"];
+                        if (logWIT == "true")
+                        {
+                            objIssue.CreateIssueWi(patBase64, "4.1", url, issueName, errorMessages, projectId, "Demo Generator");
+                        }
+                    }
+                }
+                //usercount--;
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + "\t" + ex.Message + "\t" + "\n" + ex.StackTrace + "\n");
+            }
+            finally
+            {
+                //if (usercount == 0 && !string.IsNullOrEmpty(templateUsed))
+                //{
+                //    templateService.deletePrivateTemplate(templateUsed);
+                //}
             }
         }
     }
