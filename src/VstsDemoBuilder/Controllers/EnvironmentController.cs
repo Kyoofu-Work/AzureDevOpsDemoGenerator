@@ -131,10 +131,7 @@ namespace VstsDemoBuilder.Controllers
                     _templates.Groups = new List<string>();
                     foreach (var group in templates.Groups)
                     {
-                        if (group.ToLower() != "private")
-                        {
-                            _templates.Groups.Add(group);
-                        }
+                        _templates.Groups.Add(group);
                     }
                     templates.Groups = _templates.Groups;
                 }
@@ -658,8 +655,8 @@ namespace VstsDemoBuilder.Controllers
                     string extensionJsonFile = string.Empty;
                     if (isTemplateBelongToPrivateFolder)
                     {
-                        templatesFolder = Session["PrivateTemplateURL"].ToString();
-                        extensionJsonFile = string.Format(templatesFolder + @"\Extensions.json");
+                        templatesFolder = PrivatePath;//Session["PrivateTemplateURL"].ToString();
+                        extensionJsonFile = string.Format("{0}\\{1}", templatesFolder, "Extensions.json");
                     }
                     else if (string.IsNullOrEmpty(PrivatePath))
                     {

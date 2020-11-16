@@ -117,7 +117,8 @@ namespace VstsRestAPI.WorkItemAndTracking
                 {
                     if (workItemType.ToLower() == "epic" || workItemType.ToLower() == "feature")
                     {
-                        fetchedWIs.value = fetchedWIs.value.OrderBy(x => x.id).ToArray();
+                        // commenting this to fix the work item ordering issue with Azure Sentinel template - if affecting other templates, undo the same 
+                        // fetchedWIs.value = fetchedWIs.value.OrderBy(x => x.id).ToArray();
                     }
                     foreach (ImportWorkItemModel.Value newWI in fetchedWIs.value)
                     {
@@ -210,9 +211,9 @@ namespace VstsRestAPI.WorkItemAndTracking
                             }
 
                             string areaPath = newWI.fields.SystemAreaPath ?? projectName;
-                            string[] areaPathSlpit = areaPath.Split('/');
+                            string[] areaPathSlpit = areaPath.Split('\\');
                             areaPathSlpit[0] = projectName;
-                            areaPath = string.Join("//", areaPathSlpit);
+                            areaPath = string.Join("\\", areaPathSlpit);
                             dicWIFields.Add("/fields/System.AreaPath", areaPath);
                             dicWIFields.Add("/fields/System.Description", newWI.fields.SystemDescription);
                             dicWIFields.Add("/fields/System.State", newWI.fields.SystemState);

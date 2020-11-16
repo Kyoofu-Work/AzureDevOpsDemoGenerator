@@ -19,7 +19,9 @@ The following docs provide additional information:
 * [Running the Azure DevOps Demo Generator on your local machine](./docs/Local-Development.md)
 * [Creating custom templates](./docs/Using-The-Template-Extractor.md)
 * [Using the REST APIs](./docs/Azure-DevOps-Demo-Generator-REST-API-Reference.md)
+* [Limitations](./docs/Limitations.md)
 * [Contributing to this project](./CONTRIBUTING.md)
+* [FAQ](./docs/FAQ.md)
 
 ## Contributions
 
@@ -28,3 +30,4 @@ This project welcomes contributions and suggestions.  Most contributions require
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
 For more information on contributing, please visit the [contributor guide](./CONTRIBUTING.md).
+
